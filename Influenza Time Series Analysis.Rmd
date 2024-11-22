@@ -1,0 +1,418 @@
+---
+title: "Influenza Time Series"
+output: pdf_document
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Load libraries
+```{r}
+library(TSA)
+library(tseries)
+```
+
+# Load data
+```{r}
+influenza_data = read.csv('..Desktop/R/influenza.csv', header = T)
+head(influenza_data)
+```
+
+```{r}
+##reassign variables
+month =as.Date(influenza_data$Month, format = '%m/%d/%y')
+
+flu_cases = influenza_data$Reported.cases.of.influenza.like.illnesses
+flu_cases_per_thousand = influenza_data$Reported.cases.of.influenza.like.illness.per.thousand.outpatients
+```
+
+
+```{r}
+#create a new data frame
+influenza = data.frame(month = month, flu_cases_per_thousand = flu_cases_per_thousand)
+influenza
+```
+
+```{r}
+##make a ts object
+influenza_ts = ts(influenza$flu_cases_per_thousand, start = c(2011,1), end = c(2023,9), frequency = 12)
+influenza_ts
+```
+
+```{r}
+##plot the data 
+plot(influenza$month, influenza$flu_cases_per_thousand, xlab = 'Year', ylab = 'Flu Cases Reported Per 1000 Patients', type = 'l')
+month_name = c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
+points(month, flu_cases_per_thousand, pch = month_name)
+```
+
+```{r}
+linear.model = lm(influenza$flu_cases_per_thousand ~ influenza$month)
+summary(linear.model)
+```
+The estimated regression line is -9.4022375 + 0.0017330t
+
+```{r}
+plot(influenza, ylab = 'Reported Flu Case Rate (Per Thousand)', main = 'Reported Flu Case Rate Over Time', type = 'l')
+abline(linear.model, col = 'blue', lty = 1)
+```
+
+```{r}
+time_squared = (time(influenza_ts))^2
+time_squared
+```
+
+
+```{r}
+time_squared = (time(influenza_ts))^2
+quadratic.model = lm(flu_cases_per_thousand ~ time(influenza_ts) + time_squared)
+summary(quadratic.model)
+```
+The estimated quadratic equation for the model is -1255.0514 + 6.337e-01t - 1.577e-04t^2
+
+```{r}
+plot(month, flu_cases_per_thousand, xlab = "Time", ylab = "Reported Flu Case Rate (Per Thousand)", main = "Flu Case (Per 1000) Over Time (Quadratic)", type = "l")
+
+# lines(month, fitted(quadratic_model), col = "blue", lty = 1)
+```
+
+
+```{r}
+harmonic = harmonic(influenza_ts, m =1)
+harmonic.model = lm(flu_cases_per_thousand ~ harmonic + time(influenza_ts)) 
+summary(harmonic.model)
+```
+
+```{r}
+plot(influenza_ts, ylab = "Reported Flu Case Rate (Per Thousand)", main = 'Flu Case (Per 1000) Over Time (Quadratic)')
+# lines(as.vector(time(influenza_ts)), fitted(harmonic_model), col = 'blue')
+```
+```{r}
+linear_AIC = AIC(linear.model) 
+linear_BIC = BIC(linear.model) 
+quadratic_AIC = AIC(quadratic.model) 
+quadratic_BIC = BIC(quadratic.model) 
+harmonic_AIC = AIC(harmonic.model) 
+harmonic_BIC = BIC(harmonic.model)
+linear_AIC
+linear_BIC
+quadratic_AIC
+quadratic_BIC
+harmonic_AIC
+harmonic_BIC
+```
+
+```{r}
+eacf(influenza_ts)
+acf(influenza_ts)
+pacf(influenza_ts)
+```
+
+```{r}
+adf.test(influenza_ts)
+```
+```{r}
+harmonic_residuals = residuals(harmonic.model)
+plot(harmonic_residuals, main = 'Harmonic Model Residuals')
+```
+
+```{r}
+Box.test(harmonic_residuals, lag = 10, type = 'Ljung-Box')
+
+```
+```{r}
+acf(harmonic_residuals)
+pacf(harmonic_residuals)
+```
+```{r}
+# Augmented Dickey-Fuller test
+adf.test(harmonic_residuals)
+
+```
+```{r}
+# Assuming 'your_time_series' is your time series data
+
+# Install and load necessary libraries
+# install.packages("forecast")  # Install the forecast package if not already installed
+# library(forecast)
+```
+
+
+```{r}
+# Plot ACF and PACF
+par(mfrow = c(1, 2))
+acf(influenza_ts, main = "ACF")
+pacf(influenza_ts, main = "PACF")
+
+# Identify potential values for p and q based on the plots
+# Look for significant spikes/cutoffs in ACF and PACF plots
+
+# Example: If there is a significant spike at lag 1 in ACF and cutoff at lag 1 in PACF,
+# you might consider p=1 and q=0
+
+# Fit models with different orders and compare AIC/BIC
+# You can use a loop to fit multiple models and compare their information criteria
+```
+
+
+```{r}
+best_aic = Inf
+best_order = c(0, 0, 0)
+
+for (p in 0:3) {
+  for (d in 0:1) {
+    for (q in 0:3) {
+      current_order = c(p, d, q)
+      current_model = arima(influenza_ts, order = current_order)
+      current_aic = AIC(current_model)
+      
+      if (current_aic < best_aic) {
+        best_aic = current_aic
+        best_order = current_order
+      }
+    }
+  }
+}
+
+cat("Best ARIMA Order:", best_order, "\n")
+
+# Fit the best model
+best_arima_model = arima(influenza_ts, order = best_order)
+summary(best_arima_model)
+
+```
+```{r}
+arima_model = arima(influenza_ts, order = c(3, 0, 3))
+  
+# Diagnostic tests on ARIMA model
+residuals_arima = residuals(arima_model)
+acf(residuals_arima, main = 'ARIMA(3, 0 ,3) Residuals ACF')
+pacf(residuals_arima, main = 'ARIMA(3, 0 ,3) Residuals PACF')
+adf.test(residuals_arima)
+```
+
+```{r}
+harmonic_AIC = AIC(harmonic.model)
+arima_AIC = AIC(arima_model)
+harmonic_AIC
+arima_AIC
+
+harmonic_BIC = BIC(harmonic.model)
+arima_BIC = BIC(arima_model)
+harmonic_BIC
+arima_BIC
+```
+```{r}
+# Assuming 'residuals_arima' is the residuals from your ARIMA model
+
+# Create Normal Q-Q plot
+qqnorm(residuals_arima)
+qqline(residuals_arima, col = 2)  # Add a reference line
+
+# Add title and labels
+title("Normal Q-Q Plot")
+xlabel = "Theoretical Quantiles"
+ylabel = "Sample Quantiles"
+legend("topleft", legend = c("Residuals", "Reference Line"), col = c(1, 2), lty = 1:1, bty = "n")
+abline(h = 0, col = "gray", lty = 2)  # Add a horizontal line at y = 0
+abline(v = 0, col = "gray", lty = 2)  # Add a vertical line at x = 0
+
+```
+```{r}
+# Assuming 'residuals_arima' is the residuals from your ARIMA model
+
+# Shapiro-Wilk test for normality
+shapiro_test_result = shapiro.test(residuals_arima)
+
+# Print the test result
+print(shapiro_test_result)
+
+# Extract p-value from the result
+p_value = shapiro_test_result$p.value
+
+# Check the p-value against the significance level (e.g., 0.05)
+if (p_value < 0.05) {
+  cat("The residuals are not normally distributed (reject the null hypothesis of normality).\n")
+} else {
+  cat("The residuals appear to be normally distributed (fail to reject the null hypothesis of normality).\n")
+}
+
+```
+```{r}
+# Example of log transformation
+log_ts = log(influenza_ts)
+```
+
+```{r}
+
+```
+
+
+```{r}
+arima_model_log = arima(log_ts, order = c(3, 0, 3))
+  
+# Diagnostic tests on ARIMA model
+residuals_arima_log = residuals(arima_model_log)
+acf(residuals_arima_log)
+pacf(residuals_arima_log)
+adf.test(residuals_arima_log)
+```
+
+```{r}
+harmonic_AIC = AIC(harmonic.model)
+arima_log_AIC = AIC(arima_model_log)
+harmonic_AIC
+arima_log_AIC
+
+harmonic_BIC = BIC(harmonic.model)
+arima_log_BIC = BIC(arima_model_log)
+harmonic_BIC
+arima_log_BIC
+```
+```{r}
+# Assuming 'residuals_arima' is the residuals from your ARIMA model
+
+# Create Normal Q-Q plot
+qqnorm(residuals_arima_log)
+qqline(residuals_arima_log, col = 2)  # Add a reference line
+
+# Add title and labels
+title("Normal Q-Q Plot")
+xlabel = "Theoretical Quantiles"
+ylabel = "Sample Quantiles"
+legend("topleft", legend = c("Residuals", "Reference Line"), col = c(1, 2), lty = 1:1, bty = "n")
+abline(h = 0, col = "gray", lty = 2)  # Add a horizontal line at y = 0
+abline(v = 0, col = "gray", lty = 2)  # Add a vertical line at x = 0
+
+```
+```{r}
+# Assuming 'residuals_arima' is the residuals from your ARIMA model
+
+# Shapiro-Wilk test for normality
+shapiro_test_result = shapiro.test(residuals_arima_log)
+
+# Print the test result
+print(shapiro_test_result)
+
+# Extract p-value from the result
+p_value = shapiro_test_result$p.value
+
+# Check the p-value against the significance level (e.g., 0.05)
+if (p_value < 0.05) {
+  cat("The residuals are not normally distributed (reject the null hypothesis of normality).\n")
+} else {
+  cat("The residuals appear to be normally distributed (fail to reject the null hypothesis of normality).\n")
+}
+
+```
+```{r}
+# Standardize the residuals
+standardized_residuals = residuals_arima_log / sqrt(var(residuals_arima_log))
+
+# Plot standardized residuals
+plot(standardized_residuals, main = "Standardized Residuals of ARIMA Model",
+     xlab = "Time", ylab = "Standardized Residuals")
+abline(a=0,b=0, col = 'blue')
+```
+```{r}
+tsdiag(arima_model_log, gof=15, omit.initial=F)
+```
+
+```{r}
+plot(arima_model_log, n.ahead = 24, type = 'b', xlab = 'Time', ylab = 'Log Flu Cases Reported Per 1000 Patients', main = 'Forecasted Log Flu Cases Reported Per 1000 Patients')
+abline(h=coef(arima_model_log)[names(coef(arima_model_log))=='intercept'])
+```
+
+```{r}
+predict(arima_model_log, n.ahead=24)
+```
+
+```{r}
+# Assuming influenza_cases is your time series data
+set.seed(123)  # for reproducibility
+```
+
+
+```{r}
+# Define the percentage of data to be used for testing
+test_percentage = 0.05
+```
+
+
+```{r}
+# Calculate the number of observations for testing
+test_size = round(length(log_ts) * test_percentage)
+test_size
+```
+
+
+```{r}
+# Create the training set
+train_data = log_ts[1:(length(log_ts) - test_size)]
+train_data
+```
+
+
+```{r}
+# Create the testing set
+test_data = log_ts[(length(log_ts) - test_size + 1):length(log_ts)]
+test_data
+```
+
+
+```{r}
+# Fit the ARIMA(3, 0, 3) model on the training set
+order_arima = c(3, 0, 3)
+arima_model = arima(train_data, order = order_arima)
+arima_model
+```
+
+
+```{r}
+# Forecast future values based on the fitted ARIMA model
+forecast_values = predict(arima_model, n.ahead = test_size)$pred
+forecast_values
+```
+
+
+```{r}
+# Compare forecasted values against actual observations
+comparison_df = data.frame(Actual = test_data, Forecasted = forecast_values)
+comparison_df
+```
+
+
+```{r}
+# Calculate performance metrics (e.g., Mean Absolute Error)
+mae = mean(abs(comparison_df$Actual - comparison_df$Forecasted))
+cat("Mean Absolute Error (MAE):", mae, "\n")
+mae
+```
+```{r}
+x <- c(8, 16, 24, 32)
+y <- c(1.07, 1.62, 2.97, 2.72)
+
+model <- lm(y ~ poly(x, degree = 2, raw = TRUE))
+summary(model)
+
+coefficients <- coef(model)
+intercept <- coefficients[1]
+slope <- coefficients[2]
+
+cat("Regression Equation: y =", intercept, "+", slope, "* x +", coefficients[3], "* x^2\n")
+
+```
+```{r}
+model <- lm(y ~ poly(x, degree = 2))
+
+summary(model)
+
+# Extract coefficients
+coefficients <- coef(model)
+
+# Print the regression equation
+cat("Regression Equation: y =", coefficients[1], "+", coefficients[2], "* x +", coefficients[3], "* x^2\n")
+
+```
+
+
