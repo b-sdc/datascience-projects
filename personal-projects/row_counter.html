@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🧶 Row Counter</title>
+<style>
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #faf7f2; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+.app { background: white; padding: 1.5rem; border-radius: 1.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+h1 { margin-bottom: 1rem; font-size: 1.5rem; }
+.counter { font-size: 4rem; font-weight: bold; margin: 1rem 0; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem; }
+button { font-size: 1.1rem; padding: 0.8rem; border-radius: 1rem; border: none; cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease; }
+button:active { transform: scale(0.97); box-shadow: inset 0 2px 5px rgba(0,0,0,0.15); }
+.add { background: #a3d5ff; }
+.subtract { background: #ffb3b3; }
+.reset { background: #ddd; }
+textarea { width: 100%; margin-top: 0.5rem; padding: 0.75rem; border-radius: 0.75rem; font-size: 1rem; min-height: 120px; display: none; }
+.project-actions { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+.timestamp { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
+#toggleNotes { margin-top: 0.75rem; width: 100%; background:#eee; padding:0.5rem; }
+select, input { padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #ccc; font-size: 1rem; }
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🧶 Row Counter</h1>
+<div class="project-actions">
+<select id="projectSelect" onchange="switchProject()" style="width:65%;"></select>
+<select id="projectOperations" onchange="handleProjectOperation()" style="width:30%;">
+  <option value="">Options</option>
+  <option value="add">+ Project</option>
+  <option value="rename">Rename</option>
+  <option value="delete">Delete</option>
+</select>
+</div>
+<div class="timestamp" id="lastUpdated">Last updated: --</div>
+<div id="counter" class="counter">0</div>
+<button id="toggleNotes" type="button">Show Notes</button>
+<textarea id="notes" placeholder="Project notes (yarn, hook size, pattern reminders…)"></textarea>
+<div class="buttons">
+<button class="add" id="addRowBtn">+ Row</button>
+<button class="subtract" id="removeRowBtn">− Row</button>
+<button class="reset" id="resetBtn">Reset</button>
+<button class="reset" id="undoBtn">Undo Last Change</button>
+</div>
+</div>
+<script>
+let projects = localStorage.getItem('projects') ? JSON.parse(localStorage.getItem('projects')) : {"Default Project": {rows:0, history:[], notes:"", lastUpdated:new Date().toISOString(), rowLog: []}};
+let currentProject = localStorage.getItem('currentProject') || Object.keys(projects)[0];
+const counterEl = document.getElementById('counter');
+const notesEl = document.getElementById('notes');
+const projectSelect = document.getElementById('projectSelect');
+const projectOperations = document.getElementById('projectOperations');
+const lastUpdatedEl = document.getElementById('lastUpdated');
+
+function saveProjects(){
+    projects[currentProject].notes = notesEl.value;
+    projects[currentProject].lastUpdated = new Date().toISOString();
+    localStorage.setItem('projects', JSON.stringify(projects));
+    localStorage.setItem('currentProject', currentProject);
+    counterEl.textContent = projects[currentProject].rows;
+    lastUpdatedEl.textContent = 'Last updated: ' + new Date(projects[currentProject].lastUpdated).toLocaleString();
+    renderProjects();
+}
+
+function renderProjects(){
+    projectSelect.innerHTML='';
+    const sortedProjects = Object.entries(projects).sort((a,b)=> new Date(b[1].lastUpdated) - new Date(a[1].lastUpdated));
+    sortedProjects.forEach(([name, data])=>{
+        const option=document.createElement('option');
+        option.value=name;
+        option.textContent=name;
+        const daysSince = (new Date() - new Date(data.lastUpdated)) / (1000*60*60*24);
+        if(daysSince < 1){ option.style.backgroundColor='#c8f7c5'; }
+        else if(daysSince < 7){ option.style.backgroundColor='#fff9c4'; }
+        else{ option.style.backgroundColor='#f5c6cb'; }
+        if(name===currentProject) option.selected=true;
+        projectSelect.appendChild(option);
+    });
+    notesEl.value = projects[currentProject].notes || '';
+    lastUpdatedEl.textContent = 'Last updated: ' + (projects[currentProject].lastUpdated ? new Date(projects[currentProject].lastUpdated).toLocaleString() : '--');
+}
+
+function handleProjectOperation(){
+    const op = projectOperations.value;
+    if(op === 'add') addProject();
+    else if(op === 'rename') renameProject();
+    else if(op === 'delete') deleteProject();
+    projectOperations.value = '';
+}
+
+function modifyRows(amount){
+    if(amount<0 && projects[currentProject].rows===0) return;
+    projects[currentProject].history.push(projects[currentProject].rows);
+    projects[currentProject].rows += amount;
+    saveProjects();
+}
+
+function resetRows(){ projects[currentProject].history.push(projects[currentProject].rows); projects[currentProject].rows=0; saveProjects(); }
+function undoLast(){ if(projects[currentProject].history.length>0){ projects[currentProject].rows = projects[currentProject].history.pop(); saveProjects(); } }
+function switchProject(){ currentProject=projectSelect.value; saveProjects(); }
+function addProject(){ const name = prompt('Enter new project name'); if(name && !projects[name]){ projects[name]={rows:0, history:[], notes:'', lastUpdated:new Date().toISOString(), rowLog:[]}; currentProject=name; saveProjects(); } }
+function renameProject(){ const newName = prompt('Enter new name for project ' + currentProject, currentProject); if(newName && !projects[newName]){ projects[newName] = projects[currentProject]; delete projects[currentProject]; currentProject = newName; saveProjects(); } }
+function deleteProject(){ if(confirm('Delete project '+currentProject+'?')){ delete projects[currentProject]; const keys=Object.keys(projects); currentProject=keys[0] || 'Default Project'; if(!projects[currentProject]) projects[currentProject]={rows:0, history:[], notes:'', lastUpdated:new Date().toISOString(), rowLog:[]}; saveProjects(); } }
+function toggleNotes(){ const isHidden = notesEl.style.display==='none'; notesEl.style.display = isHidden ? 'block' : 'none'; document.getElementById('toggleNotes').textContent = isHidden ? 'Hide Notes' : 'Show Notes'; }
+
+// Attach event listeners to buttons to ensure they work
+window.onload = function(){
+    document.getElementById('addRowBtn').addEventListener('click', ()=>modifyRows(1));
+    document.getElementById('removeRowBtn').addEventListener('click', ()=>modifyRows(-1));
+    document.getElementById('resetBtn').addEventListener('click', resetRows);
+    document.getElementById('undoBtn').addEventListener('click', undoLast);
+    document.getElementById('toggleNotes').addEventListener('click', toggleNotes);
+    renderProjects();
+    counterEl.textContent = projects[currentProject].rows;
+};
+</script>
+</body>
+</html>
